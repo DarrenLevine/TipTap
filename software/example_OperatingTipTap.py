@@ -66,4 +66,4 @@ while True:
     q, dq, ddq = TipTap.setStates(ControlSignal)
 
     # step the simulation if not on hw, or just gets the elapsed time info
-    # dt, elapsed_time = TipTap.GetTimeStep()
+    dt, elapsed_time = TipTap.GetTimeStep()
