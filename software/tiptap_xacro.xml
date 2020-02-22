@@ -1,0 +1,198 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="tiptap">
+<!-- Command to generate the urdf: "rosrun xacro xacro tiptap_xacro.xml > tiptap.urdf" -->
+
+    <!-- ################################## -->
+    <!-- #### macros and definitions: ##### -->
+    <!-- ################################## -->
+    <material name="red">
+        <color rgba="1 0 0 1"/>
+    </material>
+
+    <material name="black">
+        <color rgba="0.1 0.1 0.1 1"/>
+    </material>
+
+    <material name="blue">
+        <color rgba="0.1 0.1 0.8 1"/>
+    </material>
+
+    <xacro:macro name="sphere_link" params="linkname radius color m:=0">
+        <link name="${linkname}">
+            <visual>
+                <geometry>
+                    <sphere radius="${radius}"/>
+                </geometry>
+                <material name="${color}"/>
+            </visual>
+            <collision>
+                <geometry>
+                    <sphere radius="${radius}"/>
+                </geometry>
+                <!-- <contact_coefficients mu="0.08" /> -->
+            </collision>
+            <inertial>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <mass value="${m}"/>
+                <inertia ixx="1.0" ixy="0.0" ixz="0.0"
+                        iyy="1.0" iyz="0.0"
+                        izz="1.0" />
+            </inertial>
+        </link>
+    </xacro:macro>
+
+    <xacro:macro name="cuboid_inertia" params="x:=^ y:=^ z:=^ m:=^ xo:=^ yo:=^ zo:=^ rpya:=^">
+        <inertial>
+            <origin xyz="${xo} ${yo} ${zo}" rpy="${rpya[0]} ${rpya[1]} ${rpya[2]}"/>
+            <mass value="${m}"/>
+            <inertia ixx="${(y*y+z*z)*m/12}" ixy="0.0" ixz="0.0"
+                    iyy="${(x*x+z*z)*m/12}" iyz="0.0"
+                    izz="${(y*y+x*x)*m/12}" />
+        </inertial>
+    </xacro:macro>
+
+    <xacro:macro name="cuboid_geometry" params="x:=^ y:=^ z:=^ xo:=^ yo:=^ zo:=^">
+        <geometry>
+            <box size="${x} ${y} ${z}"/>
+        </geometry>
+        <origin xyz="${xo} ${yo} ${zo}" rpy="0 0 0"/>
+    </xacro:macro>
+
+    <xacro:macro name="cuboid" params="linkname xyzm snapto:=center offset:=${[0,0,0]} color:=${body_color} rpya:=${[0,0,0]}">
+        <xacro:property name="x" value="${xyzm[0]}"/>
+        <xacro:property name="y" value="${xyzm[1]}"/>
+        <xacro:property name="z" value="${xyzm[2]}"/>
+        <xacro:property name="m" value="${xyzm[3]}"/>
+        <xacro:property name="xo" value="${offset[0]}"/>
+        <xacro:property name="yo" value="${offset[1]}"/>
+        <xacro:property name="zo" value="${offset[2]}"/>
+        <xacro:if value="${'-x' in snapto}">
+            <xacro:property name="xo" value="${x/2}"/>
+        </xacro:if>
+        <xacro:if value="${'+x' in snapto}">
+            <xacro:property name="xo" value="${-x/2}"/>
+        </xacro:if>
+        <xacro:if value="${'-y' in snapto}">
+            <xacro:property name="yo" value="${y/2}"/>
+        </xacro:if>
+        <xacro:if value="${'+y' in snapto}">
+            <xacro:property name="yo" value="${-y/2}"/>
+        </xacro:if>
+        <xacro:if value="${'-z' in snapto}">
+            <xacro:property name="zo" value="${z/2}"/>
+        </xacro:if>
+        <xacro:if value="${'+z' in snapto}">
+            <xacro:property name="zo" value="${-z/2}"/>
+        </xacro:if>
+        <link name="${linkname}">
+            <visual>
+                <xacro:cuboid_geometry/>
+                <material name="${color}"/>
+            </visual>
+            <collision>
+                <xacro:cuboid_geometry x="${x*0.6}" y="${y*0.6}" z="${z*0.6}"/>
+                <!-- <contact_coefficients mu="0.08" /> -->
+            </collision>
+            <xacro:cuboid_inertia/>
+        </link>
+    </xacro:macro>
+
+    <!-- ############################### -->
+    <!-- ######### parameters: ######### -->
+    <!-- ############################### -->
+    <xacro:property name="total_mass" value="${778/1000}"/>
+    <xacro:property name="upper_leg_xyzm" value="${[26/1000, 22/1000, 123/1000, total_mass*0.15/2]}"/>
+    <xacro:property name="lower_leg_xyzm" value="${[16/1000, 19/1000, 136/1000, total_mass*0.15/2]}"/>
+    <xacro:property name="torso_xyzm" value="${[67/1000, 23/1000, 128/1000, total_mass*0.2]}"/>
+    <xacro:property name="hip_xyzm" value="${[47/1000, 47/1000, 94/1000, total_mass*0.5/2]}"/>
+    <xacro:property name="foot_radius" value="${19/1000/1.25}"/>
+    <xacro:property name="body_color" value="red"/>
+    <xacro:property name="right_hip_color" value="red"/>
+    <xacro:property name="foot_color" value="black"/>
+    <xacro:property name="joint_friction" value="0.01"/>
+    <xacro:property name="joint_damping" value="0.01"/>
+    <xacro:property name="q_rhip" value="0"/>
+    <xacro:property name="q_ruleg" value="0"/>
+    <xacro:property name="q_rlleg" value="0"/>
+    <xacro:property name="q_lhip" value="0"/>
+    <xacro:property name="q_luleg" value="0"/>
+    <xacro:property name="q_llleg" value="0"/>
+    
+    <!-- ############################### -->
+    <!-- ############ links: ########### -->
+    <!-- ############################### -->
+    <!-- Note: the torso is rotated to match it's accelerometer's orientation -->
+    <xacro:cuboid linkname="torso" xyzm="${torso_xyzm}" rpya="${[pi/2,0,0]}"/>
+    <xacro:cuboid linkname="hip_right" xyzm="${hip_xyzm}" snapto="-z"/>
+    <xacro:cuboid linkname="hip_left" xyzm="${hip_xyzm}" snapto="-z" color="blue"/>
+    <xacro:cuboid linkname="upper_leg_right" xyzm="${upper_leg_xyzm}" snapto="+z"/>
+    <xacro:cuboid linkname="upper_leg_left" xyzm="${upper_leg_xyzm}" snapto="+z" color="blue"/>
+    <xacro:cuboid linkname="lower_leg_right" xyzm="${lower_leg_xyzm}" snapto="+z"/>
+    <xacro:cuboid linkname="lower_leg_left" xyzm="${lower_leg_xyzm}" snapto="+z" color="blue"/>
+    <xacro:sphere_link linkname="right_foot" radius="${foot_radius}" color="${foot_color}"/>
+    <xacro:sphere_link linkname="left_foot" radius="${foot_radius}" color="${foot_color}"/>
+
+    <!-- ############################### -->
+    <!-- ############ joints: ########### -->
+    <!-- ############################### -->
+    <joint name="RightServo" type="revolute">
+        <parent link="torso"/>
+        <child link="hip_right"/>
+        <axis xyz="0 1 0"/>
+        <origin rpy="0 ${q_rhip*pi/180} 0" xyz="${torso_xyzm[0]/2+hip_xyzm[0]/10} ${(torso_xyzm[1]/2+hip_xyzm[1]/2)*1.1} ${-hip_xyzm[2]/2}"/>
+        <dynamics friction="${joint_friction}" damping="${joint_damping}"/>
+        <limit lower="${-17.5*pi/180}" upper="${19.7*pi/180}" effort="100" velocity="100"/>
+    </joint>
+    <joint name="RightHip" type="revolute">
+        <parent link="hip_right"/>
+        <child link="upper_leg_right"/>
+        <axis xyz="1 0 0"/>
+        <origin rpy="${q_ruleg*pi/180} 0 0" xyz="${upper_leg_xyzm[0]/2+hip_xyzm[0]/2} 0 ${hip_xyzm[2]/4}"/>
+        <dynamics friction="${joint_friction}" damping="${joint_damping}"/>
+        <limit lower="${-120*pi/180}" upper="${120*pi/180}" effort="100" velocity="100"/>
+    </joint>
+    <joint name="RightKnee" type="revolute">
+        <parent link="upper_leg_right"/>
+        <child link="lower_leg_right"/>
+        <axis xyz="1 0 0"/>
+        <origin rpy="${q_rlleg*pi/180} 0 0" xyz="0 0 ${-upper_leg_xyzm[2]}"/>
+        <dynamics friction="${joint_friction}" damping="${joint_damping}"/>
+        <limit lower="${-120*pi/180}" upper="${120*pi/180}" effort="100" velocity="100"/>
+    </joint>
+
+    <joint name="LeftServo" type="revolute">
+        <parent link="torso"/>
+        <child link="hip_left"/>
+        <axis xyz="0 1 0"/>
+        <origin rpy="0 ${q_lhip*pi/180} 0" xyz="${-torso_xyzm[0]/2+hip_xyzm[0]/10} ${(torso_xyzm[1]/2+hip_xyzm[1]/2)*1.1} ${-hip_xyzm[2]/2}"/>
+        <dynamics friction="${joint_friction}" damping="${joint_damping}"/>
+        <limit lower="${-17.5*pi/180}" upper="${19.7*pi/180}" effort="100" velocity="100"/>
+    </joint>
+    <joint name="LeftHip" type="revolute">
+        <parent link="hip_left"/>
+        <child link="upper_leg_left"/>
+        <axis xyz="1 0 0"/>
+        <origin rpy="${q_luleg*pi/180} 0 0" xyz="${-(upper_leg_xyzm[0]/2+hip_xyzm[0]/2)} 0 ${hip_xyzm[2]/4}"/>
+        <dynamics friction="${joint_friction}" damping="${joint_damping}"/>
+        <limit lower="${-120*pi/180}" upper="${120*pi/180}" effort="100" velocity="100"/>
+    </joint>
+    <joint name="LeftKnee" type="revolute">
+        <parent link="upper_leg_left"/>
+        <child link="lower_leg_left"/>
+        <axis xyz="1 0 0"/>
+        <origin rpy="${q_llleg*pi/180} 0 0" xyz="0 0 ${-upper_leg_xyzm[2]}"/>
+        <dynamics friction="${joint_friction}" damping="${joint_damping}"/>
+        <limit lower="${-120*pi/180}" upper="${120*pi/180}" effort="100" velocity="100"/>
+    </joint>
+    <joint name="LeftFoot" type="fixed">
+        <parent link="lower_leg_left"/>
+        <child link="left_foot"/>
+        <origin rpy="0 0 0" xyz="0 0 ${-lower_leg_xyzm[2]}"/>
+    </joint>
+    <joint name="RightFoot" type="fixed">
+        <parent link="lower_leg_right"/>
+        <child link="right_foot"/>
+        <origin rpy="0 0 0" xyz="0 0 ${-lower_leg_xyzm[2]}"/>
+    </joint>
+
+</robot>
