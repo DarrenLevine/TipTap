@@ -20,7 +20,7 @@ without any extra work to port your code from simulation to hardware.
 To get started, run, and read:
 **software/example_OperatingTipTap.py**
 
-If you're not connected to hardware a pybuller simulation will automatically start:
+If you're not connected to hardware a pybullet simulation will automatically start:
 ![pybullet_sim](images/pybullet_sim.png)
 
 If you are connected to hardware, you'll automatically be able to control the robot.
