@@ -22,7 +22,7 @@ import enum
 # assume that we're on hardware
 if importlib.util.find_spec("rcpy") is not None:
     _OnHardware = True
-    import rcpy
+    import rcpy  # pylint: disable=import-error
     from pyds import DirectServo
     from pyds import RegisterKillOnExit
     from pyds import KillMotors
@@ -229,6 +229,13 @@ if _OnHardware:
 
     class TipTap():
 
+        RightServo_num = 0
+        RightHip_num = 1
+        RightKnee_num = 2
+        LeftServo_num = 3
+        LeftHip_num = 4
+        LeftKnee_num = 5
+
         @staticmethod
         def OnHardware():
             return True
@@ -333,10 +340,10 @@ if _OnHardware:
                 print("SetZeroAngle = ", x.SetZeroAngle())
 
         @staticmethod
-        def GetTimeStep(TargetDT=None, MinDT=1./240.):
+        def GetTimeStep(TargetDT=None, MinDT=MIN_DT, MaxDT=1./60., scale=1.,
+                        fixedTimeStep=None):
             global last_time
             global dt_actual
-            dt_actual = 0.0
             t0 = time.time()
             dt_actual = t0 - last_time
 
@@ -401,7 +408,8 @@ else:
                   'rosrun xacro xacro tiptap_xacro.xml > tiptap.urdf'
               ))
 
-    dt_actual = 1. / 240.
+    dt_actual = 1. / 200.
+    MIN_DT = 1./2000.
     last_time = time.time()
     start_time = time.time()
     step_counter = 0
@@ -410,7 +418,7 @@ else:
     joint_vel = [0.0 for _ in range(p.getNumJoints(botId))]
     joint_accel = [0.0 for _ in range(p.getNumJoints(botId))]
 
-    def GetTimeStep(TargetDT=None, MinDT=1./240.):
+    def GetTimeStep(TargetDT, MinDT, MaxDT, scale, fixedTimeStep):
         global last_time
         global dt_actual
         global step_counter
@@ -420,20 +428,25 @@ else:
         step_counter += 1
         dt_actual = 0.0
         t0 = time.time()
-        dt_actual = t0 - last_time
+        dt_actual = (t0 - last_time)*scale
 
         # enforce a minumum dt limit and/or a user provided time limit
-        if TargetDT is not None or dt_actual < MinDT:
+        if TargetDT is not None or dt_actual < MinDT*scale:
             if TargetDT is None:
-                TargetDT = MinDT
+                TargetDT = MinDT*scale
             remaining_time = TargetDT - dt_actual
             if remaining_time > 0.00001:
                 time.sleep(remaining_time)
                 t0 = time.time()
-                dt_actual = t0 - last_time
+                dt_actual = (t0 - last_time)*scale
         last_time = t0
-
-        p.setPhysicsEngineParameter(fixedTimeStep=dt_actual)
+        if dt_actual > MaxDT:
+            dt_actual = MaxDT
+        if fixedTimeStep is None:
+            p.setPhysicsEngineParameter(fixedTimeStep=dt_actual)
+        else:
+            dt_actual = fixedTimeStep
+            p.setPhysicsEngineParameter(fixedTimeStep=fixedTimeStep)
         p.stepSimulation()
         for jnt_indx in range(p.getNumJoints(botId)):
             jointPosition, jointVelocity, _, _ = p.getJointState(
@@ -442,21 +455,33 @@ else:
             joint_accel[jnt_indx] = (
                 jointVelocity - joint_vel[jnt_indx])/dt_actual
             joint_vel[jnt_indx] = jointVelocity
-        elapsed_time = time.time() - start_time
+        elapsed_time = (time.time() - start_time)*scale
         return dt_actual, elapsed_time
 
     BodyCount = 9
     torso_index = -1
     state_snapshot = [[{}, 0.1234] for _ in range(BodyCount)]
 
-    def _anglevec(u, v): return np.arccos(
-        np.array(u).dot(v)/np.linalg.norm(u)/np.linalg.norm(v))
+    def _anglevec(u, v):
+        acos_input = np.array(u).dot(v)/np.linalg.norm(u)/np.linalg.norm(v)
+        if acos_input > 1:
+            acos_input = 1
+        elif acos_input < -1:
+            acos_input = -1
+        return np.arccos(acos_input)
 
     class TipTap():
 
+        RightServo_num = 0
+        RightHip_num = 1
+        RightKnee_num = 2
+        LeftServo_num = 3
+        LeftHip_num = 4
+        LeftKnee_num = 5
+
         @staticmethod
         def OnHardware():
-            return True
+            return False
 
         @staticmethod
         def GetBodyState(body_indx=-1):
@@ -612,5 +637,7 @@ else:
             pass
 
         @staticmethod
-        def GetTimeStep(TargetDT=None, MinDT=1./240.):
-            return GetTimeStep(TargetDT, MinDT)
+        def GetTimeStep(TargetDT=None, MinDT=MIN_DT, MaxDT=1./60.,
+                        scale=1., fixedTimeStep=None):
+            return GetTimeStep(
+                TargetDT, MinDT, MaxDT, scale, fixedTimeStep)

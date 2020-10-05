@@ -2,7 +2,7 @@
 # if not available, a pybullet sim will be started,
 # otherwise, the hardware will be made ready for use
 from tiptap import (TipTap,  # tiptap interfaces
-                    p,  # pybullet (=None if on HW)
+                    p,  # pybullet (equals None if on HW)
                     np)  # numpy
 
 # When you first program the DirectServo firmware
@@ -40,6 +40,9 @@ ControlSignal = [0. for _ in range(6)]
 if not TipTap.OnHardware():
     line_ids = [p.addUserDebugLine([0, 0, 0], [0, 0, 0]) for _ in range(3)]
 
+q, dq, ddq = TipTap.getStates()
+dt, elapsed_time = TipTap.GetTimeStep()
+
 # main sim/control loop
 while True:
 
@@ -58,12 +61,28 @@ while True:
                                lineColorRGB=base_vect,
                                replaceItemUniqueId=line_ids[bvi])
 
-    # TODO:
-    # Put your controller here, which uses "imu_data" and
-    # crafts a new "ControlSignal" list
+    # TODO: Put your controller here, which uses "imu_data" and
+    #       crafts a new "ControlSignal" list.
+    #
+    # Here's an example of a controller, that just works to point
+    # the legs downwards
+    torque_gain = -100*dt
+    ControlSignal[TipTap.RightServo_num] = imu_data["roll"]
+    ControlSignal[TipTap.RightHip_num] = (
+        q[TipTap.RightHip_num]-imu_data["pitch"])*torque_gain
+    ControlSignal[TipTap.RightKnee_num] = (
+        q[TipTap.RightKnee_num] +
+        q[TipTap.RightHip_num]-imu_data["pitch"])*torque_gain
+    ControlSignal[TipTap.LeftServo_num] = imu_data["roll"]
+    ControlSignal[TipTap.LeftHip_num] = (
+        q[TipTap.LeftHip_num]-imu_data["pitch"])*torque_gain
+    ControlSignal[TipTap.LeftKnee_num] = (
+        q[TipTap.LeftKnee_num] +
+        q[TipTap.LeftHip_num]-imu_data["pitch"])*torque_gain
 
     # apply controller torques and positions, and get the new joint states
     q, dq, ddq = TipTap.setStates(ControlSignal)
 
-    # step the simulation if not on hw, or just gets the elapsed time info
-    dt, elapsed_time = TipTap.GetTimeStep()
+    # control the simulation step if not on hw, or if running on hardware
+    # GetTimeStep() just returns the elapsed time info
+    dt, elapsed_time = TipTap.GetTimeStep(fixedTimeStep=1./300.)
